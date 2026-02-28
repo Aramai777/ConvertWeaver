@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConvertWeaver — Markdown Viewer & Converter</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f6df5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ConvertWeaver">
+<link rel="apple-touch-icon" href="icons/icon-180x180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+<meta name="description" content="View, edit, and convert Markdown with live preview, Mermaid diagrams, and multi-format export to PDF and DOCX.">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- Marked.js for Markdown parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/14.1.3/marked.min.js"></script>
+<!-- Mermaid.js for diagram rendering -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.1/mermaid.min.js"></script>
+<!-- highlight.js for code syntax highlighting -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- html2pdf for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<!-- docx for Word export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
+<!-- DOMPurify for sanitisation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg-primary: #0f1117;
+    --bg-secondary: #161822;
+    --bg-tertiary: #1c1f2e;
+    --bg-elevated: #232740;
+    --border-subtle: #2a2e45;
+    --border-active: #4f6df5;
+    --text-primary: #e8eaf0;
+    --text-secondary: #8b90a8;
+    --text-muted: #5c6180;
+    --accent: #4f6df5;
+    --accent-glow: rgba(79, 109, 245, 0.15);
+    --accent-hover: #6580f7;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --transition: 180ms ease;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Top Bar ─── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 56px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+    z-index: 100;
+  }
+
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.3px;
+  }
+
+  .topbar-brand svg { width: 28px; height: 28px; }
+
+  .topbar-brand span {
+    background: linear-gradient(135deg, #4f6df5, #7c5df5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-family: 'Sora', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--bg-elevated);
+    border-color: var(--text-muted);
+  }
+
+  .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+  .btn-success { background: #059669; border-color: #059669; color: #fff; }
+  .btn-success:hover { background: #047857; border-color: #047857; }
+
+  .btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+
+  .divider {
+    width: 1px;
+    height: 28px;
+    background: var(--border-subtle);
+    margin: 0 4px;
+  }
+
+  /* ─── Tab Bar ─── */
+  .tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 24px;
+    height: 40px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .tab {
+    padding: 8px 18px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition);
+    font-family: 'Sora', sans-serif;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .tab:hover { color: var(--text-primary); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ─── Main Content ─── */
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .panel-header .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-radius: 100px;
+    font-weight: 600;
+  }
+
+  .gutter {
+    width: 3px;
+    background: var(--border-subtle);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background var(--transition);
+  }
+
+  .gutter:hover, .gutter.dragging { background: var(--accent); }
+
+  /* ─── Editor ─── */
+  #editor {
+    flex: 1;
+    padding: 24px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    border: none;
+    outline: none;
+    resize: none;
+    overflow-y: auto;
+    tab-size: 2;
+  }
+
+  #editor::placeholder { color: var(--text-muted); }
+
+  /* ─── Preview ─── */
+  .preview-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 40px;
+    background: var(--bg-primary);
+  }
+
+  /* ─── Markdown Rendered Styles ─── */
+  .preview-wrap h1, .preview-wrap h2, .preview-wrap h3,
+  .preview-wrap h4, .preview-wrap h5, .preview-wrap h6 {
+    font-family: 'Sora', sans-serif;
+    color: var(--text-primary);
+    margin-top: 1.8em;
+    margin-bottom: 0.6em;
+    line-height: 1.3;
+  }
+
+  .preview-wrap h1 { font-size: 2em; font-weight: 700; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.3em; }
+  .preview-wrap h2 { font-size: 1.5em; font-weight: 600; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25em; }
+  .preview-wrap h3 { font-size: 1.25em; font-weight: 600; }
+  .preview-wrap h1:first-child { margin-top: 0; }
+
+  .preview-wrap p {
+    font-family: 'Crimson Pro', serif;
+    font-size: 17px;
+    line-height: 1.8;
+    color: var(--text-primary);
+    margin-bottom: 1em;
+  }
+
+  .preview-wrap a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  .preview-wrap a:hover { color: var(--accent-hover); }
+
+  .preview-wrap strong { font-weight: 600; color: #fff; }
+  .preview-wrap em { font-style: italic; }
+
+  .preview-wrap ul, .preview-wrap ol {
+    font-family: 'Crimson Pro', serif;
+    font-size: 17px;
+    line-height: 1.8;
+    padding-left: 2em;
+    margin-bottom: 1em;
+  }
+
+  .preview-wrap li { margin-bottom: 0.3em; }
+
+  .preview-wrap blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 0.5em 1.2em;
+    margin: 1em 0;
+    background: var(--accent-glow);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+
+  .preview-wrap blockquote p { color: var(--text-secondary); margin-bottom: 0; }
+
+  .preview-wrap code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--bg-elevated);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: #e0b0ff;
+  }
+
+  .preview-wrap pre {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin-bottom: 1.2em;
+  }
+
+  .preview-wrap pre code {
+    background: transparent;
+    padding: 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  .preview-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.2em;
+    font-family: 'Sora', sans-serif;
+    font-size: 14px;
+  }
+
+  .preview-wrap th {
+    text-align: left;
+    padding: 10px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+  }
+
+  .preview-wrap td {
+    padding: 10px 14px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .preview-wrap tr:nth-child(even) td { background: var(--bg-tertiary); }
+
+  .preview-wrap img { max-width: 100%; border-radius: var(--radius); margin: 1em 0; }
+
+  .preview-wrap hr {
+    border: none;
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 2em 0;
+  }
+
+  /* Task lists */
+  .preview-wrap input[type="checkbox"] {
+    margin-right: 8px;
+    accent-color: var(--accent);
+  }
+
+  /* Mermaid diagrams */
+  .mermaid-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin: 1.2em 0;
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  .mermaid-container svg { max-width: 100%; height: auto; }
+
+  .mermaid-label {
+    display: inline-block;
+    font-family: 'Sora', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* ─── Upload Zone ─── */
+  .upload-zone {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 23, 0.92);
+    backdrop-filter: blur(12px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .upload-zone.active { display: flex; }
+
+  .upload-card {
+    background: var(--bg-secondary);
+    border: 2px dashed var(--border-subtle);
+    border-radius: 16px;
+    padding: 60px 80px;
+    text-align: center;
+    transition: all 300ms ease;
+    max-width: 520px;
+  }
+
+  .upload-card.dragover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+    transform: scale(1.02);
+  }
+
+  .upload-card svg { width: 56px; height: 56px; color: var(--text-muted); margin-bottom: 20px; }
+
+  .upload-card h3 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+
+  .upload-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; }
+
+  .upload-card .file-types {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 12px;
+  }
+
+  .file-type-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    background: var(--bg-elevated);
+    border-radius: 100px;
+    color: var(--text-secondary);
+  }
+
+  /* ─── Status Bar ─── */
+  .statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 28px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-subtle);
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .statusbar-group { display: flex; gap: 16px; align-items: center; }
+
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--success);
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  /* ─── Convert View ─── */
+  .convert-view {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 40px;
+    overflow-y: auto;
+  }
+
+  .convert-view.active { display: flex; }
+
+  .convert-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 36px;
+    width: 100%;
+    max-width: 680px;
+  }
+
+  .convert-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .convert-card p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  .convert-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .convert-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .convert-option:hover {
+    background: var(--bg-elevated);
+    border-color: var(--accent);
+  }
+
+  .convert-option .icon-wrap {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .convert-option .icon-wrap.pdf { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
+  .convert-option .icon-wrap.docx { background: rgba(79, 109, 245, 0.15); color: var(--accent); }
+  .convert-option .icon-wrap.md { background: rgba(52, 211, 153, 0.15); color: var(--success); }
+
+  .convert-option .label { font-size: 14px; font-weight: 500; }
+  .convert-option .sub-label { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ─── Toast ─── */
+  .toast-container {
+    position: fixed;
+    bottom: 48px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    padding: 12px 20px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-primary);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: toastIn 300ms ease, toastOut 300ms ease 2.7s forwards;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toast.success { border-left: 3px solid var(--success); }
+  .toast.error { border-left: 3px solid var(--danger); }
+  .toast.info { border-left: 3px solid var(--accent); }
+
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } }
+  @keyframes toastOut { to { opacity: 0; transform: translateY(-8px); } }
+
+  /* ─── Print PDF Styles ─── */
+  .print-preview {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 23, 0.95);
+    z-index: 2000;
+    overflow-y: auto;
+    padding: 40px;
+  }
+
+  .print-preview.active { display: block; }
+
+  .print-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .print-page {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    color: #1a1a2e;
+    padding: 60px 72px;
+    border-radius: 4px;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.5);
+    font-family: 'Crimson Pro', serif;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .print-page h1, .print-page h2, .print-page h3 { font-family: 'Sora', sans-serif; color: #1a1a2e; }
+  .print-page h1 { font-size: 28px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin: 24px 0 12px; }
+  .print-page h2 { font-size: 22px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin: 20px 0 10px; }
+  .print-page h3 { font-size: 18px; margin: 16px 0 8px; }
+  .print-page h1:first-child { margin-top: 0; }
+  .print-page p { margin-bottom: 12px; }
+  .print-page a { color: var(--accent); }
+  .print-page code { background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 0.88em; }
+  .print-page pre { background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; overflow-x: auto; margin-bottom: 16px; }
+  .print-page pre code { background: transparent; padding: 0; font-size: 13px; color: #374151; }
+  .print-page table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  .print-page th, .print-page td { padding: 8px 12px; border: 1px solid #e5e7eb; text-align: left; font-size: 14px; }
+  .print-page th { background: #f3f4f6; font-family: 'Sora', sans-serif; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  .print-page blockquote { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 16px 0; background: #f0f4ff; border-radius: 0 6px 6px 0; }
+  .print-page .mermaid-container { background: #f8f9fa; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; text-align: center; margin: 16px 0; }
+  .print-page hr { border: none; height: 1px; background: #e5e7eb; margin: 24px 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ─── Loading spinner ─── */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 600ms linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+
+  /* ─── Mobile Action Menu ─── */
+  .mobile-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px; height: 40px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .mobile-menu-btn svg { width: 20px; height: 20px; }
+
+  .mobile-actions-drawer {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+  }
+
+  .mobile-actions-drawer.active { display: flex; }
+
+  .mobile-actions-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 17, 23, 0.7);
+    backdrop-filter: blur(4px);
+  }
+
+  .mobile-actions-sheet {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 16px 16px 0 0;
+    padding: 16px 16px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: sheetUp 250ms ease;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  @keyframes sheetUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .mobile-actions-sheet .sheet-handle {
+    width: 36px; height: 4px;
+    background: var(--border-subtle);
+    border-radius: 100px;
+    align-self: center;
+    margin-bottom: 10px;
+  }
+
+  .mobile-actions-sheet .btn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 14px 18px;
+    font-size: 15px;
+    border-radius: var(--radius);
+  }
+
+  /* ─── Mobile Panel Toggle ─── */
+  .mobile-panel-toggle {
+    display: none;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .mobile-panel-toggle-inner {
+    display: flex;
+    margin: 8px 16px;
+    background: var(--bg-primary);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .panel-toggle-btn {
+    flex: 1;
+    padding: 10px 0;
+    font-family: 'Sora', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition);
+    letter-spacing: 0.3px;
+  }
+
+  .panel-toggle-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-radius: var(--radius);
+  }
+
+  /* ──────────────────────────────────
+     RESPONSIVE: Tablet (≤ 900px)
+     ────────────────────────────────── */
+  @media (max-width: 900px) {
+    .topbar { padding: 0 16px; }
+
+    .topbar-actions .btn .btn-label { display: none; }
+    .topbar-actions .btn { padding: 8px 10px; gap: 0; }
+    .topbar-actions .divider { display: none; }
+
+    .convert-grid { grid-template-columns: 1fr; }
+
+    .print-page { padding: 40px; }
+    .print-toolbar { margin: 0 16px 16px; }
+  }
+
+  /* ──────────────────────────────────
+     RESPONSIVE: Mobile (≤ 640px)
+     ────────────────────────────────── */
+  @media (max-width: 640px) {
+    /* Topbar: hide desktop buttons, show hamburger */
+    .topbar { height: 50px; padding: 0 12px; }
+    .topbar-brand { font-size: 16px; gap: 8px; }
+    .topbar-brand svg { width: 24px; height: 24px; }
+    .topbar-actions { display: none; }
+    .mobile-menu-btn { display: flex; }
+
+    /* Tab bar compact */
+    .tab-bar { padding: 0 12px; height: 36px; }
+    .tab { padding: 6px 14px; font-size: 11.5px; }
+
+    /* Stacked panels: show toggle, hide gutter */
+    .mobile-panel-toggle { display: block; }
+    .gutter { display: none; }
+
+    .main { flex-direction: column; }
+
+    .panel { flex: none !important; width: 100%; }
+
+    #editorPanel.mobile-hidden,
+    #previewPanel.mobile-hidden { display: none !important; }
+
+    #editorPanel:not(.mobile-hidden),
+    #previewPanel:not(.mobile-hidden) { flex: 1 !important; }
+
+    /* Editor adjustments */
+    #editor { padding: 16px; font-size: 13px; line-height: 1.6; }
+
+    /* Preview adjustments */
+    .preview-wrap { padding: 20px 16px; }
+    .preview-wrap h1 { font-size: 1.6em; }
+    .preview-wrap h2 { font-size: 1.3em; }
+    .preview-wrap p, .preview-wrap ul, .preview-wrap ol { font-size: 15.5px; }
+
+    /* Panel headers */
+    .panel-header { padding: 8px 16px; }
+
+    /* Upload zone */
+    .upload-card { padding: 36px 24px; }
+    .upload-card h3 { font-size: 17px; }
+
+    /* Print preview */
+    .print-preview { padding: 12px; }
+    .print-page { padding: 24px 20px; font-size: 14px; }
+    .print-page h1 { font-size: 22px; }
+    .print-page h2 { font-size: 18px; }
+    .print-toolbar { flex-wrap: wrap; gap: 8px; padding: 10px; }
+    .print-toolbar .btn { flex: 1; min-width: 0; justify-content: center; font-size: 12px; padding: 10px 8px; }
+
+    /* Convert view */
+    .convert-view { padding: 20px 12px; gap: 20px; }
+    .convert-card { padding: 24px 18px; }
+    .convert-option { padding: 14px; gap: 10px; }
+    .convert-option .icon-wrap { width: 38px; height: 38px; font-size: 15px; }
+
+    /* Status bar */
+    .statusbar { padding: 0 12px; font-size: 10px; }
+
+    /* Toasts */
+    .toast-container { bottom: 40px; right: 12px; left: 12px; }
+    .toast { font-size: 12px; padding: 10px 14px; }
+
+    /* Mermaid overflow */
+    .mermaid-container { padding: 14px 8px; }
+    .mermaid-container svg { max-width: 100%; overflow-x: auto; }
+
+    /* Tables scroll horizontally */
+    .preview-wrap table { display: block; overflow-x: auto; }
+    .print-page table { display: block; overflow-x: auto; }
+  }
+
+  /* ──────────────────────────────────
+     RESPONSIVE: Small Mobile (≤ 380px)
+     ────────────────────────────────── */
+  @media (max-width: 380px) {
+    .topbar-brand span { font-size: 14px; }
+    #editor { font-size: 12px; padding: 12px; }
+    .preview-wrap { padding: 16px 12px; }
+    .convert-grid { gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Top Bar ─── -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <svg viewBox="0 0 28 28" fill="none"><rect x="2" y="2" width="24" height="24" rx="5" fill="url(#g1)"/><path d="M8 9h12M8 14h8M8 19h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><defs><linearGradient id="g1" x1="2" y1="2" x2="26" y2="26"><stop stop-color="#4f6df5"/><stop offset="1" stop-color="#7c5df5"/></linearGradient></defs></svg>
+    <span>ConvertWeaver</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn" onclick="showUploadZone()" title="Open file">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3M8 2v8M5 5l3-3 3 3"/></svg>
+      <span class="btn-label">Open</span>
+    </button>
+    <button class="btn" onclick="saveMarkdown()" title="Save as .md">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3M8 2v8M5 7l3 3 3-3"/></svg>
+      <span class="btn-label">Save .md</span>
+    </button>
+    <div class="divider"></div>
+    <button class="btn btn-primary" onclick="showPrintPreview()" title="Preview & export PDF">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6V2h8v4M4 12H2V8h12v4h-2M4 10h8v4H4z"/></svg>
+      <span class="btn-label">Print / PDF</span>
+    </button>
+    <button class="btn" onclick="exportDocx()" title="Export as .docx">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="1" width="10" height="14" rx="1"/><path d="M6 5h4M6 8h4M6 11h2"/></svg>
+      <span class="btn-label">Export .docx</span>
+    </button>
+  </div>
+  <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+  </button>
+</header>
+
+<!-- ─── Tab Bar ─── -->
+<nav class="tab-bar">
+  <button class="tab active" data-tab="editor" onclick="switchTab('editor')">Editor</button>
+  <button class="tab" data-tab="convert" onclick="switchTab('convert')">Convert</button>
+</nav>
+
+<!-- ─── Mobile Actions Drawer ─── -->
+<div class="mobile-actions-drawer" id="mobileDrawer">
+  <div class="mobile-actions-backdrop" onclick="closeMobileMenu()"></div>
+  <div class="mobile-actions-sheet">
+    <div class="sheet-handle"></div>
+    <button class="btn" onclick="showUploadZone(); closeMobileMenu();">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3M8 2v8M5 5l3-3 3 3"/></svg>
+      Open File
+    </button>
+    <button class="btn" onclick="saveMarkdown(); closeMobileMenu();">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3M8 2v8M5 7l3 3 3-3"/></svg>
+      Save as .md
+    </button>
+    <button class="btn btn-primary" onclick="showPrintPreview(); closeMobileMenu();">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6V2h8v4M4 12H2V8h12v4h-2M4 10h8v4H4z"/></svg>
+      Print / Export PDF
+    </button>
+    <button class="btn" onclick="exportDocx(); closeMobileMenu();">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="1" width="10" height="14" rx="1"/><path d="M6 5h4M6 8h4M6 11h2"/></svg>
+      Export as .docx
+    </button>
+  </div>
+</div>
+
+<!-- ─── Mobile Panel Toggle (Write / Preview) ─── -->
+<div class="mobile-panel-toggle" id="mobilePanelToggle">
+  <div class="mobile-panel-toggle-inner">
+    <button class="panel-toggle-btn active" data-panel="write" onclick="switchMobilePanel('write')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;"><path d="M2 13h12M2 2l8 8M6 2h4"/></svg>
+      Write
+    </button>
+    <button class="panel-toggle-btn" data-panel="preview" onclick="switchMobilePanel('preview')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>
+      Preview
+    </button>
+  </div>
+</div>
+
+<!-- ─── Main Editor View ─── -->
+<div class="main" id="editorView">
+  <div class="panel" id="editorPanel" style="flex: 1;">
+    <div class="panel-header">
+      <span>Markdown</span>
+      <span class="badge" id="wordCount">0 words</span>
+    </div>
+    <textarea id="editor" placeholder="Start writing Markdown here…
+
+Supports GitHub-flavoured Markdown with Mermaid diagrams:
+
+```mermaid
+graph TD
+  A[Start] --> B{Decision}
+  B -->|Yes| C[Action]
+  B -->|No| D[End]
+```
+
+Drop a .md, .docx, or .pdf file to open it." spellcheck="false"></textarea>
+  </div>
+
+  <div class="gutter" id="gutter"></div>
+
+  <div class="panel" id="previewPanel" style="flex: 1;">
+    <div class="panel-header">
+      <span>Preview</span>
+      <span class="badge" id="mermaidCount">0 diagrams</span>
+    </div>
+    <div class="preview-wrap" id="preview"></div>
+  </div>
+</div>
+
+<!-- ─── Convert View ─── -->
+<div class="convert-view" id="convertView">
+  <div class="convert-card">
+    <h3>Import / Convert Files</h3>
+    <p>Upload a file to convert it into Markdown, or export your current document.</p>
+    <div class="convert-grid">
+      <div class="convert-option" onclick="importFile('md')">
+        <div class="icon-wrap md">.md</div>
+        <div><div class="label">Open Markdown</div><div class="sub-label">Load a .md file into the editor</div></div>
+      </div>
+      <div class="convert-option" onclick="importFile('docx')">
+        <div class="icon-wrap docx">.docx</div>
+        <div><div class="label">Import Word Document</div><div class="sub-label">Convert .docx to Markdown</div></div>
+      </div>
+      <div class="convert-option" onclick="importFile('pdf')">
+        <div class="icon-wrap pdf">.pdf</div>
+        <div><div class="label">Import PDF</div><div class="sub-label">Extract text from .pdf to Markdown</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="convert-card">
+    <h3>Export Current Document</h3>
+    <p>Save your Markdown as a different format.</p>
+    <div class="convert-grid">
+      <div class="convert-option" onclick="saveMarkdown()">
+        <div class="icon-wrap md">.md</div>
+        <div><div class="label">Save as Markdown</div><div class="sub-label">Download the .md source file</div></div>
+      </div>
+      <div class="convert-option" onclick="showPrintPreview()">
+        <div class="icon-wrap pdf">.pdf</div>
+        <div><div class="label">Export as PDF</div><div class="sub-label">Preview then save or print to PDF</div></div>
+      </div>
+      <div class="convert-option" onclick="exportDocx()">
+        <div class="icon-wrap docx">.docx</div>
+        <div><div class="label">Export as Word</div><div class="sub-label">Convert to .docx for Word/Docs</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Upload Overlay ─── -->
+<div class="upload-zone" id="uploadZone">
+  <div class="upload-card" id="uploadCard">
+    <svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="40" height="40" rx="8" stroke-dasharray="4 3"/><path d="M28 22v12M22 28l6-6 6 6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h3>Drop your file here</h3>
+    <p>or click to browse</p>
+    <input type="file" id="fileInput" accept=".md,.markdown,.txt,.docx,.pdf" hidden>
+    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Choose File</button>
+    <div class="file-types">
+      <span class="file-type-badge">.md</span>
+      <span class="file-type-badge">.docx</span>
+      <span class="file-type-badge">.pdf</span>
+    </div>
+    <br>
+    <button class="btn" onclick="hideUploadZone()" style="margin-top: 8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- ─── Print Preview Overlay ─── -->
+<div class="print-preview" id="printPreview">
+  <div class="print-toolbar">
+    <button class="btn btn-success" onclick="downloadPdf()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3M8 2v8M5 7l3 3 3-3"/></svg>
+      Download PDF
+    </button>
+    <button class="btn" onclick="window.print()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6V2h8v4M4 12H2V8h12v4h-2M4 10h8v4H4z"/></svg>
+      Print
+    </button>
+    <button class="btn btn-danger" onclick="closePrintPreview()">Close</button>
+  </div>
+  <div class="print-page" id="printContent"></div>
+</div>
+
+<!-- ─── Status Bar ─── -->
+<footer class="statusbar">
+  <div class="statusbar-group">
+    <span><span class="status-dot"></span>Ready</span>
+    <span id="fileNameStatus">Untitled.md</span>
+  </div>
+  <div class="statusbar-group">
+    <span id="charCount">0 characters</span>
+    <span>UTF-8</span>
+    <span>Mermaid v11</span>
+  </div>
+</footer>
+
+<!-- ─── Toast Container ─── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ──────────────────────────────────────
+// Initialisation
+// ──────────────────────────────────────
+let currentFileName = 'Untitled.md';
+let mermaidCounter = 0;
+
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  securityLevel: 'loose',
+  fontFamily: 'Sora, sans-serif',
+  themeVariables: {
+    primaryColor: '#232740',
+    primaryTextColor: '#e8eaf0',
+    primaryBorderColor: '#4f6df5',
+    lineColor: '#4f6df5',
+    secondaryColor: '#1c1f2e',
+    tertiaryColor: '#161822',
+    edgeLabelBackground: '#232740'
+  }
+});
+
+// Configure marked with custom renderer
+const renderer = new marked.Renderer();
+
+// Handle Mermaid code blocks
+const originalCode = renderer.code;
+renderer.code = function({ text, lang }) {
+  if (lang && lang.toLowerCase() === 'mermaid') {
+    mermaidCounter++;
+    return `<div class="mermaid-container"><div class="mermaid-label">Mermaid Diagram</div><div class="mermaid" id="mermaid-${mermaidCounter}">${escapeHtml(text)}</div></div>`;
+  }
+  // Syntax highlighting for other languages
+  if (lang && hljs.getLanguage(lang)) {
+    const highlighted = hljs.highlight(text, { language: lang }).value;
+    return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+  }
+  return `<pre><code>${escapeHtml(text)}</code></pre>`;
+};
+
+// GitHub-flavoured task lists
+renderer.listitem = function({ text, task, checked }) {
+  if (task) {
+    return `<li style="list-style:none;margin-left:-1.5em;"><input type="checkbox" ${checked ? 'checked' : ''} disabled> ${text}</li>`;
+  }
+  return `<li>${text}</li>`;
+};
+
+marked.setOptions({
+  renderer,
+  gfm: true,
+  breaks: true
+});
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ──────────────────────────────────────
+// Editor & Live Preview
+// ──────────────────────────────────────
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+let renderTimeout;
+
+editor.addEventListener('input', () => {
+  clearTimeout(renderTimeout);
+  renderTimeout = setTimeout(renderPreview, 200);
+  updateCounts();
+});
+
+async function renderPreview() {
+  const md = editor.value;
+  mermaidCounter = 0;
+
+  const rawHtml = marked.parse(md);
+  const cleanHtml = DOMPurify.sanitize(rawHtml, {
+    ADD_TAGS: ['div', 'input'],
+    ADD_ATTR: ['class', 'id', 'checked', 'disabled', 'type']
+  });
+  preview.innerHTML = cleanHtml;
+
+  // Render all Mermaid diagrams
+  const mermaidDivs = preview.querySelectorAll('.mermaid');
+  if (mermaidDivs.length > 0) {
+    try {
+      await mermaid.run({ nodes: mermaidDivs });
+    } catch (e) {
+      console.warn('Mermaid render warning:', e);
+    }
+    document.getElementById('mermaidCount').textContent = `${mermaidDivs.length} diagram${mermaidDivs.length !== 1 ? 's' : ''}`;
+  } else {
+    document.getElementById('mermaidCount').textContent = '0 diagrams';
+  }
+}
+
+function updateCounts() {
+  const text = editor.value;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('wordCount').textContent = `${words} word${words !== 1 ? 's' : ''}`;
+  document.getElementById('charCount').textContent = `${text.length} characters`;
+}
+
+// ──────────────────────────────────────
+// Resizable Gutter
+// ──────────────────────────────────────
+const gutter = document.getElementById('gutter');
+const editorPanel = document.getElementById('editorPanel');
+const previewPanel = document.getElementById('previewPanel');
+let isDragging = false;
+
+gutter.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  gutter.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const main = document.querySelector('.main');
+  const rect = main.getBoundingClientRect();
+  const pct = ((e.clientX - rect.left) / rect.width) * 100;
+  const clamped = Math.max(20, Math.min(80, pct));
+  editorPanel.style.flex = `0 0 ${clamped}%`;
+  previewPanel.style.flex = `0 0 ${100 - clamped}%`;
+});
+
+document.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    gutter.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+});
+
+// ──────────────────────────────────────
+// Tabs
+// ──────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+
+  document.getElementById('editorView').style.display = tab === 'editor' ? 'flex' : 'none';
+  document.getElementById('convertView').classList.toggle('active', tab === 'convert');
+
+  // Show/hide mobile panel toggle depending on active tab
+  const mpt = document.getElementById('mobilePanelToggle');
+  if (mpt) {
+    mpt.style.display = (tab === 'editor' && window.innerWidth <= 640) ? 'block' : '';
+    if (tab === 'convert') mpt.style.display = 'none';
+  }
+}
+
+// ──────────────────────────────────────
+// File Upload
+// ──────────────────────────────────────
+function showUploadZone() {
+  document.getElementById('uploadZone').classList.add('active');
+}
+
+function hideUploadZone() {
+  document.getElementById('uploadZone').classList.remove('active');
+}
+
+const uploadCard = document.getElementById('uploadCard');
+const uploadZone = document.getElementById('uploadZone');
+
+uploadZone.addEventListener('click', (e) => {
+  if (e.target === uploadZone) hideUploadZone();
+});
+
+uploadCard.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadCard.classList.add('dragover');
+});
+
+uploadCard.addEventListener('dragleave', () => {
+  uploadCard.classList.remove('dragover');
+});
+
+uploadCard.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadCard.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+// Global drag and drop
+document.body.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  if (!document.getElementById('uploadZone').classList.contains('active')) {
+    showUploadZone();
+  }
+});
+
+async function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  currentFileName = file.name;
+  document.getElementById('fileNameStatus').textContent = currentFileName;
+
+  try {
+    if (ext === 'md' || ext === 'markdown' || ext === 'txt') {
+      const text = await file.text();
+      editor.value = text;
+      renderPreview();
+      updateCounts();
+      toast(`Opened ${file.name}`, 'success');
+    } else if (ext === 'docx') {
+      await importDocx(file);
+    } else if (ext === 'pdf') {
+      await importPdf(file);
+    } else {
+      toast('Unsupported file type. Please use .md, .docx, or .pdf', 'error');
+    }
+  } catch (err) {
+    console.error(err);
+    toast(`Error reading file: ${err.message}`, 'error');
+  }
+
+  hideUploadZone();
+  switchTab('editor');
+}
+
+function importFile(type) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  if (type === 'md') input.accept = '.md,.markdown,.txt';
+  else if (type === 'docx') input.accept = '.docx';
+  else if (type === 'pdf') input.accept = '.pdf';
+  input.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
+  input.click();
+}
+
+// ──────────────────────────────────────
+// DOCX Import (using mammoth via CDN)
+// ──────────────────────────────────────
+async function importDocx(file) {
+  // Load mammoth.js dynamically
+  if (!window.mammoth) {
+    toast('Loading DOCX converter…', 'info');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js');
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.convertToMarkdown({ arrayBuffer });
+
+  if (result.messages.length) {
+    console.warn('DOCX conversion warnings:', result.messages);
+  }
+
+  editor.value = result.value;
+  renderPreview();
+  updateCounts();
+  toast(`Converted ${file.name} to Markdown`, 'success');
+}
+
+// ──────────────────────────────────────
+// PDF Import (using pdf.js via CDN)
+// ──────────────────────────────────────
+async function importPdf(file) {
+  if (!window.pdfjsLib) {
+    toast('Loading PDF reader…', 'info');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let markdown = `# ${file.name.replace('.pdf', '')}\n\n`;
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const lines = content.items.map(item => item.str).join(' ');
+    markdown += lines + '\n\n';
+  }
+
+  editor.value = markdown.trim();
+  renderPreview();
+  updateCounts();
+  toast(`Extracted text from ${file.name} (${pdf.numPages} pages)`, 'success');
+}
+
+// ──────────────────────────────────────
+// Save Markdown
+// ──────────────────────────────────────
+function saveMarkdown() {
+  const blob = new Blob([editor.value], { type: 'text/markdown;charset=utf-8' });
+  downloadBlob(blob, currentFileName.replace(/\.[^.]+$/, '') + '.md');
+  toast('Saved as Markdown', 'success');
+}
+
+// ──────────────────────────────────────
+// Export DOCX
+// ──────────────────────────────────────
+async function exportDocx() {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+
+  // Parse markdown into simple structure
+  const lines = editor.value.split('\n');
+  const children = [];
+
+  for (const line of lines) {
+    if (line.startsWith('### ')) {
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_3,
+        children: [new TextRun({ text: line.replace(/^### /, ''), bold: true })]
+      }));
+    } else if (line.startsWith('## ')) {
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: line.replace(/^## /, ''), bold: true })]
+      }));
+    } else if (line.startsWith('# ')) {
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text: line.replace(/^# /, ''), bold: true })]
+      }));
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: '• ' + line.replace(/^[-*] /, '') })]
+      }));
+    } else if (line.startsWith('> ')) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: line.replace(/^> /, ''), italics: true, color: '666666' })]
+      }));
+    } else if (line.trim() === '') {
+      children.push(new Paragraph({ children: [] }));
+    } else if (line.startsWith('```')) {
+      // Skip code fences
+      continue;
+    } else {
+      // Parse inline bold and italic
+      const runs = parseInlineFormatting(line);
+      children.push(new Paragraph({ children: runs }));
+    }
+  }
+
+  const doc = new Document({
+    sections: [{ properties: {}, children }]
+  });
+
+  const buffer = await Packer.toBlob(doc);
+  downloadBlob(buffer, currentFileName.replace(/\.[^.]+$/, '') + '.docx');
+  toast('Exported as Word document', 'success');
+}
+
+function parseInlineFormatting(text) {
+  const runs = [];
+  const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|([^*`]+))/g;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match[2]) {
+      runs.push(new docx.TextRun({ text: match[2], bold: true, italics: true }));
+    } else if (match[3]) {
+      runs.push(new docx.TextRun({ text: match[3], bold: true }));
+    } else if (match[4]) {
+      runs.push(new docx.TextRun({ text: match[4], italics: true }));
+    } else if (match[5]) {
+      runs.push(new docx.TextRun({ text: match[5], font: 'Courier New', size: 20 }));
+    } else if (match[6]) {
+      runs.push(new docx.TextRun({ text: match[6] }));
+    }
+  }
+
+  return runs.length ? runs : [new docx.TextRun({ text })];
+}
+
+// ──────────────────────────────────────
+// Print Preview & PDF Export
+// ──────────────────────────────────────
+async function showPrintPreview() {
+  const printContent = document.getElementById('printContent');
+  mermaidCounter = 0;
+
+  // Re-parse with light theme for printing
+  const rawHtml = marked.parse(editor.value);
+  const cleanHtml = DOMPurify.sanitize(rawHtml, {
+    ADD_TAGS: ['div', 'input'],
+    ADD_ATTR: ['class', 'id', 'checked', 'disabled', 'type']
+  });
+  printContent.innerHTML = cleanHtml;
+
+  // Re-render Mermaid with neutral theme for print
+  const mermaidDivs = printContent.querySelectorAll('.mermaid');
+  if (mermaidDivs.length > 0) {
+    // Reinitialise with a light theme for PDF
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'neutral',
+      securityLevel: 'loose',
+      fontFamily: 'Sora, sans-serif'
+    });
+    try {
+      await mermaid.run({ nodes: mermaidDivs });
+    } catch (e) {
+      console.warn('Mermaid print render warning:', e);
+    }
+    // Restore dark theme
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+      fontFamily: 'Sora, sans-serif',
+      themeVariables: {
+        primaryColor: '#232740',
+        primaryTextColor: '#e8eaf0',
+        primaryBorderColor: '#4f6df5',
+        lineColor: '#4f6df5',
+        secondaryColor: '#1c1f2e',
+        tertiaryColor: '#161822',
+        edgeLabelBackground: '#232740'
+      }
+    });
+  }
+
+  document.getElementById('printPreview').classList.add('active');
+}
+
+function closePrintPreview() {
+  document.getElementById('printPreview').classList.remove('active');
+}
+
+async function downloadPdf() {
+  toast('Generating PDF…', 'info');
+
+  const element = document.getElementById('printContent');
+  const opt = {
+    margin: [12, 12, 12, 12],
+    filename: currentFileName.replace(/\.[^.]+$/, '') + '.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+  };
+
+  try {
+    await html2pdf().set(opt).from(element).save();
+    toast('PDF downloaded successfully', 'success');
+  } catch (err) {
+    console.error(err);
+    toast('PDF export failed: ' + err.message, 'error');
+  }
+}
+
+// ──────────────────────────────────────
+// Utilities
+// ──────────────────────────────────────
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadScript(src, isModule = false) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    if (isModule) script.type = 'module';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+function toast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = message;
+  container.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ──────────────────────────────────────
+// Mobile Menu & Panel Toggle
+// ──────────────────────────────────────
+function toggleMobileMenu() {
+  document.getElementById('mobileDrawer').classList.toggle('active');
+}
+
+function closeMobileMenu() {
+  document.getElementById('mobileDrawer').classList.remove('active');
+}
+
+function switchMobilePanel(panel) {
+  const ep = document.getElementById('editorPanel');
+  const pp = document.getElementById('previewPanel');
+
+  document.querySelectorAll('.panel-toggle-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.panel-toggle-btn[data-panel="${panel}"]`).classList.add('active');
+
+  if (panel === 'write') {
+    ep.classList.remove('mobile-hidden');
+    pp.classList.add('mobile-hidden');
+  } else {
+    ep.classList.add('mobile-hidden');
+    pp.classList.remove('mobile-hidden');
+    // Re-render preview when switching to it
+    renderPreview();
+  }
+}
+
+// Initialise mobile state: hide preview panel on small screens
+function initMobileLayout() {
+  if (window.innerWidth <= 640) {
+    document.getElementById('previewPanel').classList.add('mobile-hidden');
+  }
+}
+
+window.addEventListener('resize', () => {
+  const isMobile = window.innerWidth <= 640;
+  const ep = document.getElementById('editorPanel');
+  const pp = document.getElementById('previewPanel');
+
+  if (!isMobile) {
+    // Restore both panels when going back to desktop
+    ep.classList.remove('mobile-hidden');
+    pp.classList.remove('mobile-hidden');
+    closeMobileMenu();
+  } else {
+    // Ensure one panel is hidden on mobile
+    if (!ep.classList.contains('mobile-hidden') && !pp.classList.contains('mobile-hidden')) {
+      pp.classList.add('mobile-hidden');
+      document.querySelectorAll('.panel-toggle-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.panel-toggle-btn[data-panel="write"]').classList.add('active');
+    }
+  }
+});
+
+// ──────────────────────────────────────
+// Keyboard Shortcuts
+// ──────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') {
+      e.preventDefault();
+      saveMarkdown();
+    } else if (e.key === 'o') {
+      e.preventDefault();
+      showUploadZone();
+    } else if (e.key === 'p') {
+      e.preventDefault();
+      showPrintPreview();
+    }
+  }
+  if (e.key === 'Escape') {
+    hideUploadZone();
+    closePrintPreview();
+    closeMobileMenu();
+  }
+});
+
+// Tab key in editor inserts spaces
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = start + 2;
+    renderPreview();
+  }
+});
+
+// ──────────────────────────────────────
+// Load sample content
+// ──────────────────────────────────────
+const sampleMd = `# ConvertWeaver — Markdown Viewer & Converter
+
+Welcome to **ConvertWeaver**, your all-in-one Markdown editor with live preview, Mermaid diagram support, and multi-format conversion.
+
+## Features
+
+- **Live Preview** — See your Markdown rendered in real time
+- **Mermaid Diagrams** — GitHub-style \`\`\`mermaid code fences
+- **File Conversion** — Import/export .md, .docx, .pdf
+- **Print Preview** — Check your document before printing or saving as PDF
+- **Syntax Highlighting** — Full code block highlighting
+- **Drag & Drop** — Drop files anywhere to open them
+
+## Mermaid Diagram Examples
+
+### Flowchart
+
+\`\`\`mermaid
+graph TD
+    A[Upload .md File] --> B{Parse Content}
+    B -->|Markdown| C[Render Preview]
+    B -->|Mermaid Block| D[Render Diagram]
+    C --> E[Live Preview]
+    D --> E
+    E --> F{Export?}
+    F -->|PDF| G[html2pdf]
+    F -->|DOCX| H[docx.js]
+    F -->|MD| I[Save Source]
+\`\`\`
+
+### Sequence Diagram
+
+\`\`\`mermaid
+sequenceDiagram
+    participant User
+    participant Editor
+    participant Parser
+    participant Renderer
+
+    User->>Editor: Type Markdown
+    Editor->>Parser: Send content
+    Parser->>Parser: Detect Mermaid blocks
+    Parser->>Renderer: HTML + Mermaid SVGs
+    Renderer->>User: Live preview
+\`\`\`
+
+### Gantt Chart
+
+\`\`\`mermaid
+gantt
+    title Project Timeline
+    dateFormat  YYYY-MM-DD
+    section Design
+    Wireframes       :done, d1, 2025-01-01, 10d
+    Prototyping      :active, d2, after d1, 8d
+    section Development
+    Frontend         :d3, after d2, 15d
+    Backend          :d4, after d2, 12d
+    section Testing
+    QA               :d5, after d3, 7d
+\`\`\`
+
+## Code Example
+
+\`\`\`javascript
+// GitHub-style Mermaid in Markdown
+const md = \\\`
+\\\\\`\\\\\`\\\\\`mermaid
+graph LR
+  A --> B
+\\\\\`\\\\\`\\\\\`
+\\\`;
+\`\`\`
+
+## Table Example
+
+| Format | Import | Export | Notes |
+|--------|--------|--------|-------|
+| .md | ✅ | ✅ | Native format |
+| .docx | ✅ | ✅ | Via mammoth.js / docx.js |
+| .pdf | ✅ | ✅ | Via pdf.js / html2pdf |
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| \`Ctrl+S\` | Save as .md |
+| \`Ctrl+O\` | Open file |
+| \`Ctrl+P\` | Print / PDF preview |
+| \`Esc\` | Close overlays |
+
+> **Tip:** Drag the centre gutter to resize the editor and preview panes.
+
+---
+
+*Built with marked.js, Mermaid.js, highlight.js, html2pdf.js, and docx.js.*
+`;
+
+editor.value = sampleMd;
+initMobileLayout();
+renderPreview();
+updateCounts();
+
+// ──────────────────────────────────────
+// PWA Service Worker Registration
+// ──────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      console.log('SW: Registered with scope', reg.scope);
+
+      // Check for updates periodically
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+            toast('ConvertWeaver updated — refresh for the latest version', 'info');
+          }
+        });
+      });
+    } catch (err) {
+      console.warn('SW: Registration failed', err);
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
