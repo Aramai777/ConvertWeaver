@@ -1,5 +1,5 @@
 // ConvertWeaver Service Worker v1.0
-const CACHE_NAME = 'convertweaver-v2';
+const CACHE_NAME = 'convertweaver-v3';
 
 // Core app files
 const APP_SHELL = [

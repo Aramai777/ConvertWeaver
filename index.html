@@ -1065,6 +1065,9 @@ Drop a .md, .docx, or .pdf file to open it." spellcheck="false"></textarea>
 // ──────────────────────────────────────
 let currentFileName = 'Untitled.md';
 let mermaidCounter = 0;
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+let renderTimeout;
 
 mermaid.initialize({
   startOnLoad: false,
@@ -1121,10 +1124,6 @@ function escapeHtml(str) {
 // ──────────────────────────────────────
 // Editor & Live Preview
 // ──────────────────────────────────────
-const editor = document.getElementById('editor');
-const preview = document.getElementById('preview');
-let renderTimeout;
-
 editor.addEventListener('input', () => {
   clearTimeout(renderTimeout);
   renderTimeout = setTimeout(renderPreview, 200);
@@ -1266,11 +1265,12 @@ async function handleFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   currentFileName = file.name;
   document.getElementById('fileNameStatus').textContent = currentFileName;
+  const editorEl = document.getElementById('editor');
 
   try {
     if (ext === 'md' || ext === 'markdown' || ext === 'txt') {
       const text = await file.text();
-      editor.value = text;
+      editorEl.value = text;
       renderPreview();
       updateCounts();
       toast(`Opened ${file.name}`, 'success');
