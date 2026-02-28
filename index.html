@@ -11,9 +11,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ConvertWeaver">
-<link rel="apple-touch-icon" href="icons/icon-180x180.png">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+<link rel="apple-touch-icon" href="icon-180x180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icon-16x16.png">
 <meta name="description" content="View, edit, and convert Markdown with live preview, Mermaid diagrams, and multi-format export to PDF and DOCX.">
 <meta name="mobile-web-app-capable" content="yes">
 
@@ -1015,7 +1015,7 @@ Drop a .md, .docx, or .pdf file to open it." spellcheck="false"></textarea>
     <svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="40" height="40" rx="8" stroke-dasharray="4 3"/><path d="M28 22v12M22 28l6-6 6 6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h3>Drop your file here</h3>
     <p>or click to browse</p>
-    <input type="file" id="fileInput" accept=".md,.markdown,.txt,.docx,.pdf" hidden>
+    <input type="file" id="fileInput" accept=".md,.markdown,.txt,.docx,.pdf,text/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,*/*" hidden>
     <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Choose File</button>
     <div class="file-types">
       <span class="file-type-badge">.md</span>
@@ -1293,9 +1293,9 @@ async function handleFile(file) {
 function importFile(type) {
   const input = document.createElement('input');
   input.type = 'file';
-  if (type === 'md') input.accept = '.md,.markdown,.txt';
-  else if (type === 'docx') input.accept = '.docx';
-  else if (type === 'pdf') input.accept = '.pdf';
+  if (type === 'md') input.accept = '.md,.markdown,.txt,text/*,*/*';
+  else if (type === 'docx') input.accept = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,*/*';
+  else if (type === 'pdf') input.accept = '.pdf,application/pdf,*/*';
   input.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
   input.click();
 }

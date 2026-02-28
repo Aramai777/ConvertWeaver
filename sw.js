@@ -1,13 +1,13 @@
 // ConvertWeaver Service Worker v1.0
-const CACHE_NAME = 'convertweaver-v1';
+const CACHE_NAME = 'convertweaver-v2';
 
 // Core app files
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192x192.png',
-  './icons/icon-512x512.png'
+  './icon-192x192.png',
+  './icon-512x512.png'
 ];
 
 // CDN dependencies to cache
